@@ -26,6 +26,8 @@ class InvoiceIn(BaseModel):
     issued_date: date
     due_date: date
     number: str | None = None
+    tds_applicable: bool = False
+    gst_applicable: bool = False
 
 
 class InvoiceTextIn(BaseModel):
@@ -136,3 +138,28 @@ class AlertOut(BaseModel):
     level: Literal["critical", "warning", "info"]
     text: str
     client_id: int | None = None
+
+
+class ReconcileParseIn(BaseModel):
+    text: str
+
+
+class ReconcileConfirmIn(BaseModel):
+    invoice_id: int
+    amount: float = Field(gt=0)
+    reference: str | None = None
+    sender: str | None = None
+    text: str | None = None
+
+
+class DiscountIn(BaseModel):
+    client_id: int | None = None
+    invoice_id: int | None = None
+    discount_percent: float = Field(default=5, ge=0, le=100)
+    hours: float = Field(default=3, gt=0)
+
+
+class DeferBillIn(BaseModel):
+    bill_id: int
+    days: int = Field(default=7, ge=1)
+

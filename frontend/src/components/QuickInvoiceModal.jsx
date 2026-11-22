@@ -25,6 +25,8 @@ export default function QuickInvoiceModal({ open, onClose, onCreated }) {
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [tdsApplicable, setTdsApplicable] = useState(false);
+  const [gstApplicable, setGstApplicable] = useState(false);
 
   // Escape closes the modal.
   useEffect(() => {
@@ -91,8 +93,20 @@ export default function QuickInvoiceModal({ open, onClose, onCreated }) {
       amount,
       issued_date: form.issued_date,
       due_date: form.due_date,
+      tds_applicable: tdsApplicable,
+      gst_applicable: gstApplicable,
     });
   }
+
+  // Live tax breakdown; amount in the field is the gross (pre-tax) base.
+  const gross = Number(form.amount);
+  const hasGross = Number.isFinite(gross) && gross > 0;
+  const gstAmt = Math.round(gross * 0.18 * 100) / 100;
+  const tdsAmt = Math.round(gross * 0.1 * 100) / 100;
+  const totalBilled = gross + (gstApplicable ? gstAmt : 0);
+  const netReceivable = totalBilled - (tdsApplicable ? tdsAmt : 0);
+  const fmtINR = (n) =>
+    n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
@@ -128,7 +142,8 @@ export default function QuickInvoiceModal({ open, onClose, onCreated }) {
                 setMode(m.value);
                 setError("");
               }}
-              className={`rounded-md px-3 py-1 font-medium ${
+              aria-pressed={mode === m.value}
+              className={`min-h-[44px] rounded-md px-3 py-1 font-medium ${
                 mode === m.value ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"
               }`}
             >
@@ -199,6 +214,59 @@ export default function QuickInvoiceModal({ open, onClose, onCreated }) {
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               />
             </label>
+            <div className="space-y-2 text-sm sm:col-span-2">
+              <label className="flex items-center gap-2 text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={tdsApplicable}
+                  aria-describedby="tax-hint"
+                  onChange={(e) => setTdsApplicable(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                />
+                10% TDS applicable (Section 194J - Professional Fees)
+              </label>
+              <label className="flex items-center gap-2 text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={gstApplicable}
+                  aria-describedby="tax-hint"
+                  onChange={(e) => setGstApplicable(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                />
+                18% GST
+              </label>
+              <p id="tax-hint" className="text-xs text-slate-500">
+                TDS is deducted by the client; you will receive the Net Receivable Cash.
+              </p>
+              {hasGross && (
+                <div aria-live="polite" className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+                  <div className="flex justify-between text-slate-700">
+                    <span>Gross Amount</span>
+                    <span className="text-right tabular-nums">₹{fmtINR(gross)}</span>
+                  </div>
+                  {gstApplicable && (
+                    <div className="flex justify-between text-slate-700">
+                      <span>Add GST (18%)</span>
+                      <span className="text-right tabular-nums">+ ₹{fmtINR(gstAmt)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-slate-700">
+                    <span>Total billed</span>
+                    <span className="text-right tabular-nums">₹{fmtINR(totalBilled)}</span>
+                  </div>
+                  {tdsApplicable && (
+                    <div className="flex justify-between text-slate-700">
+                      <span>TDS deducted by client (10%)</span>
+                      <span className="text-right tabular-nums">− ₹{fmtINR(tdsAmt)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t border-slate-200 pt-1 font-semibold text-slate-900">
+                    <span>Net Receivable Cash</span>
+                    <span className="text-right tabular-nums">₹{fmtINR(netReceivable)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="sm:col-span-2">
               <ModalFooter busy={busy} error={error} onClose={onClose} />
             </div>
@@ -212,19 +280,19 @@ export default function QuickInvoiceModal({ open, onClose, onCreated }) {
 function ModalFooter({ busy, error, onClose }) {
   return (
     <>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       <div className="flex justify-end gap-2 pt-2">
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          className="min-h-[44px] rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={busy}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+          className="min-h-[44px] rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
         >
           {busy ? "Creating…" : "Create invoice"}
         </button>

@@ -1,7 +1,7 @@
 """SQLAlchemy 2 ORM models. All amounts are integer rupees."""
 from datetime import date, datetime
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import Boolean, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -51,6 +51,8 @@ class Invoice(Base):
     due_date: Mapped[date]
     # Only "draft" or "sent" are stored; other statuses are derived in status().
     status_override: Mapped[str | None] = mapped_column(String(10), default=None)
+    tds_applicable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    gst_applicable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     client: Mapped[Client] = relationship(back_populates="invoices")
     payments: Mapped[list["Payment"]] = relationship(
@@ -58,8 +60,28 @@ class Invoice(Base):
     )
 
     @property
+    def gross_amount(self) -> int:
+        return self.amount
+
+    @property
+    def tds_amount(self) -> float:
+        return round(self.gross_amount * 0.10, 2) if self.tds_applicable else 0.0
+
+    @property
+    def gst_amount(self) -> float:
+        return round(self.gross_amount * 0.18, 2) if self.gst_applicable else 0.0
+
+    @property
+    def total_billed(self) -> float:
+        return self.gross_amount + self.gst_amount
+
+    @property
+    def net_receivable(self) -> float:
+        return self.total_billed - self.tds_amount
+
+    @property
     def outstanding(self) -> int:
-        return max(0, self.amount - (self.amount_paid or 0))
+        return max(0, self.net_receivable - (self.amount_paid or 0))
 
     def status(self, today: date) -> str:
         """Derive draft / paid / partially_paid / overdue / sent."""
@@ -87,6 +109,7 @@ class Payment(Base):
     invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id"))
     amount: Mapped[int]
     paid_on: Mapped[date]
+    reference: Mapped[str | None] = mapped_column(String, nullable=True)
 
     invoice: Mapped[Invoice] = relationship(back_populates="payments")
 

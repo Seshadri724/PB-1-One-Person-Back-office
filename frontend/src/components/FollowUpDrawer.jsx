@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Copy, Link2, MessageCircle, X } from "lucide-react";
-import { addFollowup, getFollowups, getReminder } from "../api";
+import { addFollowup, getFollowups, getInvoices, getReminder, getSettings } from "../api";
 import { formatDate } from "../utils/format";
+import UpiQr from "./UpiQr.jsx";
+import { buildUpiUri } from "../lib/upiQr.js";
 
 const TONES = [
   { value: "friendly", label: "Friendly" },
@@ -20,6 +22,18 @@ function withMessage(url, message) {
   }
 }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// API dates are YYYY-MM-DD; the slip shows DD-MMM-YYYY, or "On receipt" when unset.
+function formatSlipDate(value) {
+  if (!value) return "On receipt";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
+  if (!m) return String(value);
+  return `${m[3]}-${MONTHS[Number(m[2]) - 1]}-${m[1]}`;
+}
+
+const formatINR = (n) => Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+
 export default function FollowUpDrawer({ client, onClose, onSent }) {
   const clientId = client?.id;
   const [tone, setTone] = useState("friendly");
@@ -28,6 +42,11 @@ export default function FollowUpDrawer({ client, onClose, onSent }) {
   const [history, setHistory] = useState([]);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+  const [invoices, setInvoices] = useState([]);
+  const [settings, setSettings] = useState(null);
+  const [amountMode, setAmountMode] = useState("full");
+  const [customInput, setCustomInput] = useState(null);
+  const [slipCopied, setSlipCopied] = useState(false);
 
   // Escape closes the drawer.
   useEffect(() => {
@@ -50,6 +69,27 @@ export default function FollowUpDrawer({ client, onClose, onSent }) {
       .catch((err) => setError(err.message));
   }, [clientId]);
 
+  // Load settings (UPI ID, business name) and invoices for the QR and WhatsApp slip.
+  useEffect(() => {
+    if (clientId == null) return;
+    setAmountMode("full");
+    setCustomInput(null);
+    setSlipCopied(false);
+    getSettings()
+      .then(setSettings)
+      .catch((err) => setError(err.message));
+    getInvoices()
+      .then((rows) => setInvoices(rows || []))
+      .catch((err) => setError(err.message));
+  }, [clientId]);
+
+  // "Copied" feedback lasts 2 seconds.
+  useEffect(() => {
+    if (!slipCopied) return undefined;
+    const t = setTimeout(() => setSlipCopied(false), 2000);
+    return () => clearTimeout(t);
+  }, [slipCopied]);
+
   // Fetch the drafted reminder whenever client or tone changes.
   useEffect(() => {
     if (clientId == null) return;
@@ -70,6 +110,51 @@ export default function FollowUpDrawer({ client, onClose, onSent }) {
   }, [clientId, tone]);
 
   if (!client) return null;
+
+  // Same invoice the reminder targets: the open one that is most overdue.
+  const openInvoices = invoices.filter(
+    (i) => i.client_id === clientId && i.status !== "draft" && i.outstanding > 0,
+  );
+  const target = openInvoices.reduce(
+    (best, i) => (best === null || i.days_overdue > best.days_overdue ? i : best),
+    null,
+  );
+  const outstanding = target ? Number(target.outstanding) : 0;
+  const customValue = customInput ?? String(outstanding);
+  const customParsed = Number(customValue);
+  const customValid = Number.isFinite(customParsed) && customParsed > 0;
+  // Custom falls back to outstanding while the entered value is not a positive number.
+  const amount = amountMode === "custom" && customValid ? customParsed : outstanding;
+  const businessName = settings?.business_name ?? "";
+  const upiUri = target && settings
+    ? buildUpiUri({ upiId: settings.upi_id, payeeName: businessName, amount, invoiceNumber: target.number })
+    : "";
+
+  function buildSlip() {
+    const lines = [
+      `*${businessName}* - Payment Reminder`,
+      `Invoice: *${target.number}*`,
+      `Gross: ₹${formatINR(target.gross_amount)}`,
+    ];
+    if (Number(target.tds_amount) > 0) lines.push(`TDS deducted (if any): ₹${formatINR(target.tds_amount)}`);
+    if (Number(target.gst_amount) > 0) lines.push(`GST (if any): ₹${formatINR(target.gst_amount)}`);
+    lines.push(
+      `*Net due: ₹${formatINR(amount)}*`,
+      `Due date: ${formatSlipDate(target.due_date)}`,
+      `UPI ID: *${settings.upi_id}*`,
+      `Pay link: ${upiUri}`,
+    );
+    return lines.join("\n");
+  }
+
+  async function copySlip() {
+    try {
+      await navigator.clipboard.writeText(buildSlip());
+      setSlipCopied(true);
+    } catch {
+      setError("Could not access the clipboard.");
+    }
+  }
 
   async function logFollowup(channel) {
     await addFollowup(clientId, { channel, tone, note: text });
@@ -179,10 +264,69 @@ export default function FollowUpDrawer({ client, onClose, onSent }) {
                 <Link2 size={16} /> Copy UPI link
               </button>
             )}
+            {target && settings && (
+              <button
+                type="button"
+                onClick={copySlip}
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Copy size={16} /> {slipCopied ? "Copied" : "Copy WhatsApp Slip"}
+              </button>
+            )}
+            <span className="sr-only" aria-live="polite">
+              {slipCopied ? "Copied" : ""}
+            </span>
           </div>
 
-          {status && <p className="text-sm text-emerald-600">{status}</p>}
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {target && settings && (
+            <div className="space-y-2">
+              <span className="block text-sm text-slate-600">UPI QR · {target.number}</span>
+              <div className="inline-flex rounded-lg border border-slate-200 p-0.5 text-sm">
+                {[
+                  { value: "full", label: "Full amount" },
+                  { value: "custom", label: "Custom amount" },
+                ].map((m) => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => setAmountMode(m.value)}
+                    aria-pressed={amountMode === m.value}
+                    className={`min-h-[44px] rounded-md px-3 py-1 font-medium ${
+                      amountMode === m.value ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              {amountMode === "custom" && (
+                <label className="block text-sm">
+                  <span className="mb-1 block text-slate-600">Amount (₹)</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    value={customValue}
+                    onChange={(e) => setCustomInput(e.target.value)}
+                    className="w-40 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </label>
+              )}
+              {amountMode === "custom" && !customValid && (
+                <p className="text-xs text-amber-600" aria-live="polite">
+                  Enter an amount above zero. The QR uses the outstanding ₹{formatINR(outstanding)} until then.
+                </p>
+              )}
+              <UpiQr
+                value={upiUri}
+                aria-label={`UPI payment QR code for ${target.number}, amount ₹${formatINR(amount)}`}
+              />
+              <p className="text-sm tabular-nums text-slate-700">Amount: ₹{formatINR(amount)}</p>
+            </div>
+          )}
+
+          {status && <p aria-live="polite" className="text-sm text-emerald-600">{status}</p>}
+          {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
 
           <div>
             <h3 className="mb-2 text-sm font-semibold text-slate-900">Past follow-ups</h3>

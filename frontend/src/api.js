@@ -57,3 +57,39 @@ export const updateSettings = (payload) =>
   request("/api/settings", { method: "PUT", body: JSON.stringify(payload) });
 
 export const resetDemo = () => post("/api/reset", {});
+
+
+export const getRunway = () => request("/api/runway");
+
+export const parseBankSms = (text) => post("/api/reconcile/parse", { text });
+
+// Unlike request(), a non-2xx here throws the JSON `detail` or the HTTP status text,
+// so the UI can surface e.g. "Duplicate UPI reference".
+export const confirmReconciliation = async ({ invoice_id, amount, reference, sender, text }) => {
+  const res = await fetch("/api/reconcile/confirm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ invoice_id, amount, reference, sender, text }),
+  });
+  if (!res.ok) {
+    let message = res.statusText || `Request failed (${res.status})`;
+    try {
+      const body = await res.json();
+      if (body.detail) {
+        message = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+      }
+    } catch {
+      // non-JSON error body: keep the status text
+    }
+    throw new Error(message);
+  }
+  return res.json();
+};
+
+export const discountLever = ({ client_id, invoice_id, discount_percent, hours }) =>
+  post("/api/levers/discount", { client_id, invoice_id, discount_percent, hours });
+
+export const deferBillLever = (bill_id, days) => post("/api/levers/defer-bill", { bill_id, days });
+
+export const getStaggeredChase = () => request("/api/levers/staggered-chase");
+
