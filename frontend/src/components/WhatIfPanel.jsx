@@ -63,10 +63,15 @@ export default function WhatIfPanel({ onApplied }) {
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-slate-900">
-        <FlaskConical size={18} className="text-indigo-600" /> What if…?
-      </h2>
+    <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm transition-all duration-300">
+      <div className="mb-4">
+        <h2 className="flex items-center gap-2 text-base font-bold text-slate-900">
+          <FlaskConical size={18} className="text-indigo-600" /> What If… Cash Sandbox
+        </h2>
+        <p className="text-xs text-slate-500">
+          Simulate payment delays, retainers, or client churn to see how your runway reacts
+        </p>
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm">

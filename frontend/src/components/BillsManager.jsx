@@ -86,13 +86,13 @@ export default function BillsManager({ onChanged }) {
     .reduce((sum, b) => sum + b.amount, 0);
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm transition-all duration-300">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-            <Receipt size={18} className="text-indigo-600" /> Bills
+          <h2 className="flex items-center gap-2 text-base font-bold text-slate-900">
+            <Receipt size={18} className="text-indigo-600" /> Fixed Bills & Subscriptions
           </h2>
-          <p className="text-sm text-slate-500">
+          <p className="text-xs text-slate-500">
             Total due this month: <strong className="text-slate-900">{formatINR(totalDueThisMonth)}</strong>
           </p>
         </div>

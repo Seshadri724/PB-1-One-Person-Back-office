@@ -139,8 +139,8 @@ function formatCells(size) {
 
 const MASKS = [
   (r, c) => (r + c) % 2 === 0,
-  (r, c) => r % 2 === 0,
-  (r, c) => c % 3 === 0,
+  (r, _c) => r % 2 === 0,
+  (_r, c) => c % 3 === 0,
   (r, c) => (r + c) % 3 === 0,
   (r, c) => (Math.floor(r / 2) + Math.floor(c / 2)) % 2 === 0,
   (r, c) => ((r * c) % 2) + ((r * c) % 3) === 0,

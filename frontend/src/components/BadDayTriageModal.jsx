@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { X, Zap } from "lucide-react";
+import { motion } from "framer-motion";
 import { deferBillLever, discountLever, getAlerts, getBills, getDashboard, getStaggeredChase } from "../api";
 import { daysBetween, formatDate, formatINR } from "../utils/format";
 
@@ -175,22 +176,38 @@ export default function BadDayTriageModal({ open, onClose, onOpenClient }) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
-      <div
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px]"
+      />
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        transition={{ duration: 0.2 }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="triage-title"
-        className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl"
+        className="relative z-10 w-full max-w-lg max-h-[88vh] overflow-y-auto rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xl"
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 id="triage-title" className="text-base font-semibold text-slate-900">
-            Do these 3 things today
-          </h2>
+        <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+              <Zap size={16} />
+            </span>
+            <h2 id="triage-title" className="text-base font-bold text-slate-900">
+              Crisis Triage · 3 Things To Do Today
+            </h2>
+          </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded-md p-1 text-slate-500 hover:bg-slate-100"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
           >
             <X size={18} />
           </button>
@@ -365,7 +382,7 @@ export default function BadDayTriageModal({ open, onClose, onOpenClient }) {
 
           {copyError && <p role="alert" className="text-sm text-red-600">{copyError}</p>}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

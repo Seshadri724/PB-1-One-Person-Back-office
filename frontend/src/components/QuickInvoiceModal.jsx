@@ -165,7 +165,7 @@ export default function QuickInvoiceModal({ open, onClose, onCreated }) {
               />
             </label>
             <p className="text-xs text-slate-500">
-              Example: "Logo design for Zenith Foods 35k due in 15 days"
+              Example: &ldquo;Logo design for Zenith Foods 35k due in 15 days&rdquo;
             </p>
             <ModalFooter busy={busy} error={error} onClose={onClose} />
           </form>

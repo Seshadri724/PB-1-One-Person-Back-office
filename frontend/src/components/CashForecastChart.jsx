@@ -10,16 +10,11 @@ import {
   YAxis,
 } from "recharts";
 import { formatDate, formatINR, shortINR } from "../utils/format";
+import AnimatedCounter from "./AnimatedCounter";
 
 const HORIZONS = [30, 60, 90];
-// Used when no settings object is passed in (documented fallback).
 const DEFAULT_BUFFER = 60000;
 
-/**
- * forecast: dashboard.forecast -> { 30: [...], 60: [...], 90: [...] }, each item { date, balance, inflow, outflow }
- * totals:   dashboard.totals -> { cash_now, cash_30, cash_60, cash_90, ... }
- * settings: optional; if given, settings.min_cash_buffer is the chart reference line
- */
 export default function CashForecastChart({ forecast, totals, settings }) {
   const [horizon, setHorizon] = useState(90);
 
@@ -30,17 +25,26 @@ export default function CashForecastChart({ forecast, totals, settings }) {
   const dip = series.find((p) => p.balance < buffer);
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-semibold text-slate-900">Cash forecast</h2>
-        <div className="inline-flex rounded-lg border border-slate-200 p-0.5">
+    <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm transition-all duration-300">
+      {/* Header & Horizon Controls */}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-bold text-slate-900">Cash Flow Forecast</h2>
+          <p className="text-xs text-slate-500">
+            Projected bank balance factoring reliability-weighted receivables and upcoming bills
+          </p>
+        </div>
+
+        <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50/80 p-1">
           {HORIZONS.map((d) => (
             <button
               key={d}
               type="button"
               onClick={() => setHorizon(d)}
-              className={`rounded-md px-3 py-1 text-xs font-medium ${
-                horizon === d ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"
+              className={`rounded-lg px-3 py-1 text-xs font-semibold transition-all ${
+                horizon === d
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
               }`}
             >
               {d} days
@@ -49,58 +53,79 @@ export default function CashForecastChart({ forecast, totals, settings }) {
         </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Cash now" value={totals?.cash_now} />
-        <Stat label="In 30 days" value={totals?.cash_30} />
-        <Stat label="In 60 days" value={totals?.cash_60} />
-        <Stat label="In 90 days" value={totals?.cash_90} />
+      {/* KPI Stats Grid */}
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Cash Now" value={totals?.cash_now} sub="Opening balance" highlight />
+        <StatCard label="In 30 Days" value={totals?.cash_30} sub="Net expected" />
+        <StatCard label="In 60 Days" value={totals?.cash_60} sub="Net expected" />
+        <StatCard label="In 90 Days" value={totals?.cash_90} sub="Net expected" />
       </div>
 
+      {/* Warning Banners */}
       {runsOut ? (
-        <Warning>Cash runs out on {formatDate(runsOut.date)}. Chase payments or defer a bill now.</Warning>
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs font-medium text-rose-800">
+          <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+          <span>
+            Cash runs out on <strong>{formatDate(runsOut.date)}</strong>. Chase overdue invoices or defer bills immediately.
+          </span>
+        </div>
       ) : dip ? (
-        <Warning>
-          Cash dips below the {formatINR(buffer)} buffer on {formatDate(dip.date)}.
-        </Warning>
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-800">
+          <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+          <span>
+            Cash dips below your safe <strong>{formatINR(buffer)}</strong> buffer on <strong>{formatDate(dip.date)}</strong>.
+          </span>
+        </div>
       ) : null}
 
-      <div className="mt-4 h-64 w-full">
+      {/* Chart Canvas */}
+      <div className="mt-2 h-72 w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={series} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+          <AreaChart data={series} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
             <defs>
-              <linearGradient id="cashFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#4f46e5" stopOpacity={0.25} />
-                <stop offset="100%" stopColor="#4f46e5" stopOpacity={0} />
+              <linearGradient id="cashGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#4f46e5" stopOpacity={0.28} />
+                <stop offset="85%" stopColor="#818cf8" stopOpacity={0.05} />
+                <stop offset="100%" stopColor="#818cf8" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
             <XAxis
               dataKey="date"
               tickFormatter={(d) => formatDate(d)}
-              minTickGap={32}
-              tick={{ fontSize: 11, fill: "#64748b" }}
+              minTickGap={28}
+              tick={{ fontSize: 11, fill: "#64748b", fontFamily: "sans-serif" }}
+              axisLine={{ stroke: "#e2e8f0" }}
+              tickLine={false}
             />
             <YAxis
               tickFormatter={(v) => shortINR(v)}
-              width={64}
-              tick={{ fontSize: 11, fill: "#64748b" }}
+              width={60}
+              tick={{ fontSize: 11, fill: "#64748b", fontFamily: "monospace" }}
+              axisLine={false}
+              tickLine={false}
             />
-            <Tooltip
-              formatter={(v) => formatINR(v)}
-              labelFormatter={(d) => formatDate(d)}
-            />
+            <Tooltip content={<CustomTooltip />} />
             <ReferenceLine
               y={buffer}
               stroke="#f59e0b"
               strokeDasharray="4 4"
-              label={{ value: "Buffer", fill: "#b45309", fontSize: 11, position: "insideTopRight" }}
+              strokeWidth={1.5}
+              label={{
+                value: `Buffer: ${shortINR(buffer)}`,
+                fill: "#b45309",
+                fontSize: 11,
+                position: "insideTopRight",
+                fontWeight: 600,
+              }}
             />
             <Area
               type="monotone"
               dataKey="balance"
               stroke="#4f46e5"
-              strokeWidth={2}
-              fill="url(#cashFill)"
+              strokeWidth={2.5}
+              fill="url(#cashGradient)"
+              animationDuration={800}
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -109,21 +134,36 @@ export default function CashForecastChart({ forecast, totals, settings }) {
   );
 }
 
-function Stat({ label, value }) {
+function StatCard({ label, value, sub, highlight = false }) {
   return (
-    <div className="rounded-lg bg-slate-50 px-3 py-2">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="text-sm font-semibold tabular-nums text-slate-900">
-        {value == null ? "—" : formatINR(value)}
+    <div className={`rounded-xl border p-3.5 transition-all ${highlight ? "border-indigo-100 bg-indigo-50/40" : "border-slate-200/80 bg-slate-50/60"}`}>
+      <div className="text-xs font-medium text-slate-500">{label}</div>
+      <div className="mt-1 text-base font-bold text-slate-900">
+        {value == null ? (
+          "—"
+        ) : (
+          <>
+            <span className="text-xs font-normal text-slate-400 mr-0.5">₹</span>
+            <AnimatedCounter value={value} />
+          </>
+        )}
       </div>
+      <div className="mt-0.5 text-[11px] text-slate-400">{sub}</div>
     </div>
   );
 }
 
-function Warning({ children }) {
-  return (
-    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-      {children}
-    </div>
-  );
+function CustomTooltip({ active, payload, label }) {
+  if (active && payload && payload.length) {
+    const val = payload[0].value;
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white/95 px-3.5 py-2.5 shadow-lg backdrop-blur-sm">
+        <div className="text-[11px] font-medium text-slate-400">{formatDate(label)}</div>
+        <div className="mt-0.5 text-sm font-bold font-mono text-indigo-600">
+          {formatINR(val)}
+        </div>
+      </div>
+    );
+  }
+  return null;
 }

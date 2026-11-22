@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { getDashboard } from "./api";
 import ActionAlerts from "./components/ActionAlerts.jsx";
 import BadDayTriageModal from "./components/BadDayTriageModal.jsx";
@@ -37,29 +38,49 @@ export default function App() {
 
   if (!data) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="flex min-h-screen items-center justify-center p-4">
         {error ? (
-          <p className="text-red-600">Could not load dashboard: {error}</p>
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-600 shadow-sm">
+            Could not load dashboard: {error}
+          </div>
         ) : (
-          <p className="text-slate-500">Loading KhataFlow…</p>
+          <div className="flex items-center gap-3 text-slate-500 font-medium">
+            <span className="h-4 w-4 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+            Loading KhataFlow…
+          </div>
         )}
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-      {error && <p className="text-red-600 text-sm">Refresh failed: {error}</p>}
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="max-w-6xl mx-auto px-4 py-8 space-y-6"
+    >
+      {error && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          Refresh failed: {error}
+        </div>
+      )}
+
       <TopBar
         settings={data.settings}
         onReload={reload}
         onNewInvoice={() => setInvoiceOpen(true)}
         onTriage={() => setTriageOpen(true)}
       />
+
       <ActionAlerts alerts={data.alerts} onOpenClient={openClientById} />
+
       <WhoOwesMe clients={data.who_owes} onChase={setChaseClient} />
+
       <CashForecastChart forecast={data.forecast} totals={data.totals} settings={data.settings} />
+
       <WhatIfPanel />
+
       <BillsManager onChanged={reload} />
 
       <QuickInvoiceModal
@@ -70,16 +91,26 @@ export default function App() {
           reload();
         }}
       />
-      <FollowUpDrawer
-        client={chaseClient}
-        onClose={() => setChaseClient(null)}
-        onSent={reload}
-      />
-      <BadDayTriageModal
-        open={triageOpen}
-        onClose={() => setTriageOpen(false)}
-        onOpenClient={openClientById}
-      />
-    </div>
+
+      <AnimatePresence>
+        {chaseClient && (
+          <FollowUpDrawer
+            client={chaseClient}
+            onClose={() => setChaseClient(null)}
+            onSent={reload}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {triageOpen && (
+          <BadDayTriageModal
+            open={triageOpen}
+            onClose={() => setTriageOpen(false)}
+            onOpenClient={openClientById}
+          />
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }
